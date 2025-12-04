@@ -317,6 +317,10 @@ MonoBehaviour:
   coord: {fileID: 290517699}
   charX: 0
   charY: 0
+  attackBox: {fileID: 0}
+  boxOffset: 0
+  triggerBattle: {fileID: 0}
+  enemyChecker: {fileID: 0}
 --- !u!50 &290517696
 Rigidbody2D:
   serializedVersion: 5
@@ -433,6 +437,10 @@ MonoBehaviour:
       m_Calls: []
     m_ActionId: 0819f220-f411-4020-83ee-02471ce60df3
     m_ActionName: UI/TrackedDeviceOrientation
+  - m_PersistentCalls:
+      m_Calls: []
+    m_ActionId: d200eac9-6e2d-4af1-93da-2ff259e1d31b
+    m_ActionName: 'Player/Attack[/Keyboard/space]'
   m_NeverAutoSwitchControlSchemes: 0
   m_DefaultControlScheme: 
   m_DefaultActionMap: Player

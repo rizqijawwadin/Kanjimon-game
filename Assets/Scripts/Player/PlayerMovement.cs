@@ -78,6 +78,8 @@ public class PlayerMovement : MonoBehaviour
       if (enemyChecker != null && enemyChecker.enemyInsideRange)
       {
           triggerBattle?.EnterBattle();
+          gameObject.GetComponent<SpriteRenderer>().enabled = false;
+          this.enabled = false;
       }
   }
 }
