@@ -77,6 +77,10 @@ public class PlayerMovement : MonoBehaviour
   {
       if (enemyChecker != null && enemyChecker.enemyInsideRange)
       {
+        EnemyData enemyData = enemyChecker.targetEnemy.GetComponent<EnemyData>();
+
+        GameManager.instance.currentEnemy = enemyData.enemyDataSO;
+
           triggerBattle?.EnterBattle();
           gameObject.GetComponent<SpriteRenderer>().enabled = false;
           this.enabled = false;

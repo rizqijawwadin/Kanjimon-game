@@ -1,15 +1,13 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "EnemyData", menuName = "Kanjimon/EnemyData")]
-public class EnemyData : ScriptableObject
+[CreateAssetMenu(fileName = "EnemyDataSO", menuName = "Kanjimon/EnemyData")]
+public class EnemyDataSO : ScriptableObject
 {
     [Header("Attributes")]
+    public int enemyID;
     public string enemyName;
     public int hp;
-    public int attackMultiplier = 2;
-    public int exp = 5; // buat exp ke player setelah kill
-    
-    [Header("Misscellaneous")]
-    public Sprite portrait; // buat icon in battle
+    public int attack;
+    public int exp; // buat exp ke player setelah kill
     public GameObject enemyPrefab;
 }
