@@ -4,6 +4,7 @@ using TMPro;
 
 public class QuestionManager : MonoBehaviour
 {
+    // [SerializeField] private Walker walker; -> nanti bisa pake class ke3 buat track level, kl sementara mau pake walker, bebas
     [SerializeField] private LargeLanguageService llm;
     [SerializeField] private TMP_Text questionText; 
     [SerializeField] private TMP_InputField answerField;
@@ -13,19 +14,32 @@ public class QuestionManager : MonoBehaviour
 
     private string currentJapanese;
     
-
     void Start()
     {
         enemyHP = GameManager.instance.currentEnemy.hp;
         playerHP = 100; // eksampel
         GenerateQuestion();
     }
+    
+    // weighted scaling, biar di awal gk digenjreng soal N kelaz atas
+    public string GetDungeonDifficulty(int dungeon)
+    {
+        float r = Random.value;
 
+        if (dungeon <= 2) return "N5";
+        if (dungeon <= 5) return (r < 0.7f) ? "N5" : "N4";
+        if (dungeon <= 6) return (r < 0.5f) ? "N4" : "N3";
+        if (dungeon <= 7) return (r < 0.3f) ? "N4" : "N3";
+        if (dungeon <= 8) return (r < 0.6f) ? "N3" : "N2";
+        if (dungeon <= 9) return (r < 0.4f) ? "N2" : "N1";
+
+        return "N1"; // Dungeon 10 final boss
+    }
+    
     void GenerateQuestion()
     {
-        // sementara contoh random kata manual
-        string[] words = { "水", "猫", "友達", "学校" };
-        currentJapanese = words[Random.Range(0, words.Length)];
+        // ini nanti kategori sesuai enemy type, dimap tuh ke question type
+        currentJapanese = QuestionRepository.instance.GetRandomQuestion("", GetDungeonDifficulty(1)).sentence;
         questionText.text = currentJapanese;
     }
 

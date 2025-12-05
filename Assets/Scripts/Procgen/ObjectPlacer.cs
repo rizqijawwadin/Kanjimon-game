@@ -5,10 +5,10 @@ using UnityEngine;
 using UnityEngine.Tilemaps;
 using Random = UnityEngine.Random;
 
-public class PotionPlacer : MonoBehaviour
+public class ObjectPlacer : MonoBehaviour
 {
     // prefab to object we want to place
-    [SerializeField] private GameObject potionPrefab;
+    [SerializeField] private GameObject objectPrefab;
     [SerializeField] private int prefabNumber = 5;
     
     [SerializeField] private Walker walker;
@@ -16,7 +16,7 @@ public class PotionPlacer : MonoBehaviour
     [SerializeField] private Tilemap groundTilemap;
     
     // the array aint changing, the child is, so readonly
-    private readonly List<GameObject> _potionInstances = new();
+    private readonly List<GameObject> _objectInstances = new();
 
     // check if ground tile generation is complete
     private bool IsGenerationCompleted()
@@ -44,11 +44,11 @@ public class PotionPlacer : MonoBehaviour
     // clear all previously placed objects
     private void ClearPlacedObjects()
     {
-        foreach (var instance in _potionInstances)
+        foreach (var instance in _objectInstances)
         {
             if (instance != null) Destroy(instance);
         }
-        _potionInstances.Clear();
+        _objectInstances.Clear();
     }
     
     // retrieve all floor tile position for ground tilemap
@@ -75,10 +75,10 @@ public class PotionPlacer : MonoBehaviour
     }
 
     // place object prefab randomly
-    private void PlacePotions()
+    private void PlaceObjects()
     {
         ClearPlacedObjects();
-        if (potionPrefab == null || walker == null || groundTilemap == null) return;
+        if (objectPrefab == null || walker == null || groundTilemap == null) return;
         
         // get all tile pos
         var floorPositions = GetFloorPositions();
@@ -94,8 +94,8 @@ public class PotionPlacer : MonoBehaviour
             // convert to world pos, also center it on tile
             var worldPos = groundTilemap.CellToWorld(tilePos) + new Vector3(0.5f, 0.5f, 0);
             
-            var instance = Instantiate(potionPrefab, worldPos, Quaternion.identity);
-            _potionInstances.Add(instance);
+            var instance = Instantiate(objectPrefab, worldPos, Quaternion.identity);
+            _objectInstances.Add(instance);
             
             // make sure no overlap, remove used pos
             floorPositions.RemoveAt(randomIndex);
@@ -103,16 +103,16 @@ public class PotionPlacer : MonoBehaviour
     }
     
     // wait till level gen is done (like other skrip ye)
-    private IEnumerator PlacePotionsCoroutine()
+    private IEnumerator PlaceObjectsCoroutine()
     {
         yield return new WaitUntil(IsGenerationCompleted);
-        PlacePotions();
+        PlaceObjects();
     }
     
     // pub method to regen potions, called by walker on new level gen
     public void OnLevelGenerated()
     {
-        StartCoroutine(PlacePotionsCoroutine());
+        StartCoroutine(PlaceObjectsCoroutine());
     }
 
     // start in the beninging
