@@ -1,34 +1,30 @@
 using UnityEngine.UI;
 using UnityEngine;
 
-public class MenuTabController : MonoBehaviour
+public class IndexTabController : MonoBehaviour
 {
   public Image[] tabIcons;
   public GameObject[] tabContents;
-  public GameObject mainMenu;
-  public GameObject mainTab;
+
+  void Start()
+  {
+    ActivateTab(0);
+  }
 
   public void ActivateTab(int tabIndex)
   {
-    mainTab.SetActive(true);
     for (int i = 0; i < tabIcons.Length; i++)
     {
       if (i == tabIndex)
       {
         tabContents[i].SetActive(true);
+        tabIcons[i].color = Color.white;
       }
       else
       {
         tabContents[i].SetActive(false);
+        tabIcons[i].color = Color.gray;
       }
     }
-    mainMenu.SetActive(false);
-  }
-
-  public void CloseTab(int tabIndex)
-  {
-    tabContents[tabIndex].SetActive(false);
-    mainMenu.SetActive(true);
-    mainTab.SetActive(false);
   }
 }
