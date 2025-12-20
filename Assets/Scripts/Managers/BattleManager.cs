@@ -132,7 +132,7 @@ popUpUI.ShowYourTurn(() => {
         // Akumulasi skor ketika jawaban benar
         int scoreToAdd = Mathf.RoundToInt(score);
         currentSessionScore += scoreToAdd;
-        BattleDataManager.Instance.AddScore(scoreToAdd);
+        // BattleDataManager.Instance.AddScore(scoreToAdd);
         
         Debug.Log($"[Battle] Correct answer! Score added: {scoreToAdd}. Session total: {currentSessionScore}");
 
@@ -148,7 +148,7 @@ popUpUI.ShowYourTurn(() => {
 
                 // Simpan data battle ke JSON
                 bool isBossBattle = PlayerManager.Instance.isEnemyBoss;
-                BattleDataManager.Instance.SaveBattleResult(playerHealth, isBossBattle);
+                // BattleDataManager.Instance.SaveBattleResult(playerHealth, isBossBattle);
 
                 if (isBossBattle && BossManager.Instance != null)
                 {
