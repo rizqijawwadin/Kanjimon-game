@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Collections;
 
 public class QuestionManager : MonoBehaviour
 {
@@ -8,16 +9,22 @@ public class QuestionManager : MonoBehaviour
     [SerializeField] private LargeLanguageService llm;
     [SerializeField] private TMP_Text questionText; 
     [SerializeField] private TMP_InputField answerField;
+    [SerializeField] private BattleManager battleManager;
+    [SerializeField] private TMP_Text resultText;
+    [SerializeField] private TMP_Text explanationText;
+    [SerializeField] private GameObject boxExplain;
+    [SerializeField] private Button submitButton;
 
-    [SerializeField] private float enemyHP;
-    [SerializeField] private float playerHP;
+
+    private bool isEvaluating = false;
+    private string pendingAction; // "attack" / "defend"
 
     private string currentJapanese;
     
     void Start()
     {
-        enemyHP = GameManager.instance.currentEnemy.hp;
-        playerHP = 100; // eksampel
+        // enemyHP = GameManager.instance.currentEnemy.hp;
+        // playerHP = 100; // eksampel
         GenerateQuestion();
     }
     
@@ -36,6 +43,12 @@ public class QuestionManager : MonoBehaviour
         return "N1"; // Dungeon 10 final boss
     }
     
+    public void AskQuestionForAction(string action)
+    {
+        pendingAction = action;
+        GenerateQuestion();
+    }
+
     void GenerateQuestion()
     {
         // ini nanti kategori sesuai enemy type, dimap tuh ke question type
@@ -45,35 +58,98 @@ public class QuestionManager : MonoBehaviour
 
     public void OnSubmit()
     {
+        if (isEvaluating) return;
+        isEvaluating = true;
+
+        answerField.interactable = false;
+        submitButton.interactable = false;
+
         var request = new SubmitQuestionRequest
         {
             question = currentJapanese,
             answer = answerField.text
         };
 
+        answerField.text = "";
+
         llm.SubmitQuestion(request, OnEvaluateSuccess, OnEvaluateError);
     }
 
     private void OnEvaluateSuccess(LargeLanguageResponse resp)
     {
-        Debug.Log("Score: " + resp.score);
+        isEvaluating = false;
 
-        if (resp.score >= 80f)
-        {
-            enemyHP -= resp.score;
-        }
-        else
-        {
-            playerHP -= (100f - resp.score);
-        }
+        resultText.text = $"Score: {resp.score:0}";
+        
+        boxExplain.SetActive(true);
+        explanationText.text = resp.explanation;
 
-        // clear input & next word
-        answerField.text = "";
-        GenerateQuestion();
+        // input OFF saat review
+        answerField.interactable = false;
+
+        battleManager.OnActionEvaluated(pendingAction, resp.score);
+
+        submitButton.GetComponentInChildren<TMP_Text>().text = "Lanjut";
+        submitButton.onClick.RemoveAllListeners();
+        submitButton.onClick.AddListener(NextQuestion);
+
+        pendingAction = null;
+
+        // auto-hide boxExplain setelah 3detik
+        StartCoroutine(HideExplanationAfterSeconds(3f));
     }
 
     private void OnEvaluateError(string message)
     {
+        isEvaluating = false;
+
+        explanationText.text = message;
         Debug.LogError(message);
+
+        ResetReviewUI();
+
+        // balikin turn ke player
+        battleManager.CancelActionAndReturnToPlayer();
+
+        pendingAction = null;
+    }
+
+    // lanjut setelah aksi
+    private void NextQuestion()
+    {
+        boxExplain.SetActive(false);
+
+        submitButton.GetComponentInChildren<TMP_Text>().text = "Submit";
+        submitButton.onClick.RemoveAllListeners();
+        submitButton.onClick.AddListener(OnSubmit);
+        submitButton.interactable = true;
+
+        answerField.interactable = true;
+
+        GenerateQuestion();
+    }
+
+    // buat ngosongin UI
+    public void ResetReviewUI()
+    {
+        Debug.Log("Resetting Review UI");
+        resultText.text = "";
+        explanationText.text = "";
+
+        boxExplain.SetActive(false);
+
+        answerField.text = "";
+        answerField.interactable = true;
+
+        submitButton.GetComponentInChildren<TMP_Text>().text = "Submit";
+        submitButton.onClick.RemoveAllListeners();
+        submitButton.onClick.AddListener(OnSubmit);
+        submitButton.interactable = true;
+    }
+
+    private IEnumerator HideExplanationAfterSeconds(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        boxExplain.SetActive(false);
     }
 }

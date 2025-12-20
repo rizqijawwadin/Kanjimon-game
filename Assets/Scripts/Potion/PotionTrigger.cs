@@ -6,6 +6,7 @@ public class PotionTrigger : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
+            PlayerManager.Instance.potionsLeft++;
             Potion.PotionCount++;
             Destroy(gameObject);
         }

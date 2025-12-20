@@ -1,9 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Serialization;
 using UnityEngine.Tilemaps;
 using Random = UnityEngine.Random;
 
@@ -32,9 +32,7 @@ public class Walker : MonoBehaviour
     [SerializeField] private int borderSize = 3; // the size of the border (inaccessible area)
     
     [Header("Level Persistence")]
-    [SerializeField] private LevelManager levelManager;
     [SerializeField] private string playerId = "player1";
-    [SerializeField] private int currentLevel = 1;
     
     [Header("Objects References")]
     // reference to another class
@@ -42,6 +40,7 @@ public class Walker : MonoBehaviour
     [SerializeField] private TeleporterHandler teleporterHandler;
     [SerializeField] private PotionSpawner potionPlacer;
     [SerializeField] private MonsterSpawner enemyPlacer;
+    [SerializeField] private BossSpawner bossPlacer;
     
     // Grid and walker management variable
     private bool[,] _visitedTiles; // keep track of visited tiles
@@ -62,16 +61,29 @@ public class Walker : MonoBehaviour
             TriggerRegenerate();
         }
     }
-
-    // defaultnya mati le, nanti bikin trigger aja ketika pindah dari level 1 ke dungeon, panggil block of code dibawah
-    void Start()
-    {
-        // restart all level data, ntar apus kl dah beneer
-        levelManager.DeleteAllLevelData();
-        CalculateGridBounds();
-        TriggerRegenerate();
-    }
     
+    // defaultnya mati le, nanti bikin trigger aja ketika pindah dari level 1 ke dungeon, panggil block of code dibawah
+    IEnumerator Start()
+    {
+        CalculateGridBounds();
+        // LevelRepository.Instance.DeleteAllLevelData();
+    
+        // NEW: Check if returning from battle
+        if (PlayerManager.Instance != null && PlayerManager.Instance.isReturningFromBattle)
+        {
+            Debug.Log("[Walker] Returning from battle - loading saved level");
+            // DON'T reset flag here - let LoadFromLevelData handle it after restoring position
+            LoadLevel(PlayerManager.Instance.lastFloor, 0); // Load current floor
+        }
+        else
+        {
+            Debug.Log("[Walker] First time or new game - generating level");
+            TriggerRegenerate();
+        }
+    
+        yield return null;
+    }
+
     // Calculate grid and walker bounds based on girdSize and borderSize
     private void CalculateGridBounds()
     {
@@ -177,10 +189,10 @@ public class Walker : MonoBehaviour
             }
         }
         
-        // guaranteed 3x3 at the end dan start buat teleporter
-        for (int ox = -1; ox <= 1; ox++)
+        // guaranteed 5x5 at the end dan start buat teleporter
+        for (int ox = 0; ox <= 4; ox++)
         {
-            for (int oy = -1; oy <= 1; oy++)
+            for (int oy = 0; oy <= 4; oy++)
             {
                 var p = new Vector2Int(curPos.x + ox, curPos.y + oy);
 
@@ -280,15 +292,15 @@ public class Walker : MonoBehaviour
         
         LevelData levelData = new LevelData
         {
-            levelId = levelManager.GetLevelId(playerId, currentLevel),
+            levelId = LevelRepository.Instance.GetLevelId(playerId, PlayerManager.Instance.lastFloor),
             playerId = playerId,
-            level = currentLevel,
+            level = PlayerManager.Instance.lastFloor,
             groundTiles = GetGroundTilesList(),
             entryDoor = teleporterHandler.EntryDoor,
             exitDoor = teleporterHandler.ExitDoor
         };
         
-        levelManager.SaveLevel(levelData);
+        LevelRepository.Instance.SaveLevel(levelData);
     }
     
     private List<TileData> GetGroundTilesList()
@@ -343,7 +355,7 @@ public class Walker : MonoBehaviour
     // Load existing level
     private void LoadLevel(int levelNumber, int levelIncrement)
     {
-        LevelData data = levelManager.LoadOrNull(playerId, levelNumber);
+        LevelData data = LevelRepository.Instance.LoadOrNull(playerId, levelNumber);
         Debug.Log($"[Walker] LoadLevel called for level {levelNumber}, dataNull={data==null}");
 
         if (data != null && data.groundTiles.Count > 0)
@@ -402,6 +414,22 @@ public class Walker : MonoBehaviour
         {
             enemyPlacer.PlaceMonstersFromData(data.enemyPositions);
         }
+
+        if (bossPlacer != null)
+        {
+            if (data.bossPosition != null)
+            {
+                bossPlacer.PlaceBossFromData(data.bossPosition, data.bossDefeated);
+            }
+            else
+            {
+                // kalau null, berarti ga disimpin di save sebelumnya, jadi sekarang idup
+                if (BossManager.Instance != null)
+                {
+                    BossManager.Instance.SetBossDead(false);
+                }
+            }
+        }
         
         if (potionPlacer != null)
         {
@@ -410,14 +438,28 @@ public class Walker : MonoBehaviour
 
         if (playerHandler != null)
         {
-            // kalau exit (atas ke bawah), player di kanan entry
-            // kalau entry (bawah ke atas), player di kiri exit
-            if (isExit)
+            // PRIORITY 1: Returning from battle - restore exact saved position
+            if (PlayerManager.Instance != null && PlayerManager.Instance.isReturningFromBattle && PlayerManager.Instance.lastPosition != Vector3.zero)
             {
+                Debug.Log($"[Walker] Restoring player to saved position after battle: {PlayerManager.Instance.lastPosition}");
+                Vector3Int cellPos = groundTilemap.WorldToCell(PlayerManager.Instance.lastPosition);
+                playerHandler.LoadPlayer(new Vector2Int(cellPos.x, cellPos.y));
+            
+                // NOW reset the battle flags and clear saved position
+                PlayerManager.Instance.isReturningFromBattle = false;
+                PlayerManager.Instance.lastPosition = Vector3.zero;
+                PlayerManager.Instance.CleanUp();
+            }
+            // PRIORITY 2: Moving up floors (exit, going down in dungeon)
+            else if (isExit)
+            {
+                Debug.Log("[Walker] Placing player at entry door (moving down floors)");
                 playerHandler.LoadPlayer(new Vector2Int(data.entryDoor.x, data.entryDoor.y) + Vector2Int.right);
             }
+            // PRIORITY 3: Moving down floors (entry, going up from dungeon) or first time loading
             else
             {
+                Debug.Log("[Walker] Placing player at exit door (moving up floors or default)");
                 playerHandler.LoadPlayer(new Vector2Int(data.exitDoor.x, data.exitDoor.y) + Vector2Int.left);
             }
         }
@@ -428,18 +470,19 @@ public class Walker : MonoBehaviour
         GenerateLevel();
         Debug.Log($"[Walker] enemyPlacer null? {enemyPlacer == null}");
         Debug.Log($"[Walker] potionPlacer null? {potionPlacer == null}");
-        Debug.Log($"[Walker] Trigger regeneration for level {currentLevel}");
+        Debug.Log($"[Walker] Trigger regeneration for level {PlayerManager.Instance.lastFloor}");
+        Debug.Log($"[Walker] bossPlacer null? {bossPlacer == null}");
         
         // trigger placements for the first time
         if (enemyPlacer != null)
         {
-            Debug.Log($"[Walker] Triggering enemy placement for level {currentLevel}");
+            Debug.Log($"[Walker] Triggering enemy placement for level {PlayerManager.Instance.lastFloor}");
             enemyPlacer.OnLevelGenerated();
         }
 
         if (potionPlacer != null)
         {
-            Debug.Log($"[Walker] Triggering potion placement for level {currentLevel}");
+            Debug.Log($"[Walker] Triggering potion placement for level {PlayerManager.Instance.lastFloor}");
             potionPlacer.OnLevelGenerated();
         }
         
@@ -452,35 +495,67 @@ public class Walker : MonoBehaviour
         {
             GenerateAndSaveWhenDoorsReady();
         }
+
+        Debug.Log("[Walker] Is this called?");
+        if (bossPlacer != null)
+        {
+            bossPlacer.OnLevelGenerated();
+        }
     }
     
+    public void SaveCurrentLevelState()
+    {
+        Debug.Log($"[Walker] Saving current level state for floor {PlayerManager.Instance.lastFloor}");
+        if (PlayerManager.Instance != null && playerHandler != null)
+        {
+            var player = playerHandler.GetPlayerInstance();
+            if (player != null)
+            {
+                PlayerManager.Instance.lastPosition = player.transform.position;
+                Debug.Log($"[Walker] Saved player position: {PlayerManager.Instance.lastPosition}");
+            }
+        }
+    
+        SaveObjects();
+    }
+
     private void SaveObjects()
     {
-        Debug.Log($"[Walker] Saving objects for level {currentLevel}");
+        Debug.Log($"[Walker] Saving objects for level {PlayerManager.Instance.lastFloor}");
         if (potionPlacer != null && enemyPlacer != null)
         {
             var potionData = potionPlacer.GetPotionData();
             var monsterData = enemyPlacer.GetMonsterData();
+            var bossData = bossPlacer.GetBossPosition();
             
-            Debug.Log($"[Walker] Saving level {currentLevel} with {potionData.Count} potions and {monsterData.Count} monsters");
-            levelManager.SaveLevelObjects(levelManager.GetLevelId(playerId, currentLevel), potionData, monsterData);
+            Debug.Log($"[Walker] Saving level {PlayerManager.Instance.lastFloor} with {potionData.Count} potions and {monsterData.Count} monsters");
+            LevelRepository.Instance.SaveLevelObjects(LevelRepository.Instance.GetLevelId(playerId, PlayerManager.Instance.lastFloor), potionData, monsterData, bossData);
         }
     }
     
     public void TriggerLoad(int levelIncrement)
     {
         CalculateGridBounds();
-        
-        // Save the current level's objects before loading the next level
         SaveObjects();
-        
-        var level = currentLevel + levelIncrement;
-        if (level < 1)
+    
+        var level = PlayerManager.Instance.lastFloor + levelIncrement;
+        if (level < 1) return;
+    
+        // MODIFY THIS: Clear saved position when changing floors
+        if (levelIncrement != 0 && PlayerManager.Instance != null)
         {
-            return;
+            PlayerManager.Instance.lastPosition = Vector3.zero; // Clear old position
+            Debug.Log("[Walker] Changing floors - clearing saved player position");
         }
-
-        currentLevel = level;
-        LoadLevel(currentLevel, levelIncrement);
+    
+        // ADD THIS: Reset boss when moving to new floor
+        if (levelIncrement > 0 && BossManager.Instance != null)
+        {
+            BossManager.Instance.ResetFloor();
+            Debug.Log("[Walker] Moving to new floor - resetting boss state");
+        }
+    
+        PlayerManager.Instance.SetFloor(level);
+        LoadLevel(PlayerManager.Instance.lastFloor, levelIncrement);
     }
 }

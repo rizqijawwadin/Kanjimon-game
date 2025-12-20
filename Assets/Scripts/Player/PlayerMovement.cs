@@ -1,5 +1,4 @@
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -11,7 +10,6 @@ public class PlayerMovement : MonoBehaviour
   private Rigidbody2D rb;
   [SerializeField] private Vector2 movement;
   private Animator animator;
-  public GameObject character;
   public Transform coord;
   public float charX;
   public float charY;
@@ -20,21 +18,10 @@ public class PlayerMovement : MonoBehaviour
   [SerializeField] private GameObject attackBox;
   [SerializeField] private float boxOffset;
 
-  [Header ("Other References")]
-  [SerializeField] private TriggerBattle triggerBattle;
-  [SerializeField] private EnemyChecker enemyChecker;
-
   void Start()
   {
     rb = GetComponent<Rigidbody2D>();
     animator = GetComponent<Animator>();
-  }
-
-  void Awake()
-  {
-    character = this.gameObject;
-    triggerBattle = this.GetComponent<TriggerBattle>();
-    enemyChecker = attackBox.GetComponent<EnemyChecker>();
   }
 
   void Update()
@@ -63,27 +50,10 @@ public class PlayerMovement : MonoBehaviour
     animator.SetFloat("Y", movement.y);
 
     animator.SetBool("isMove", !context.canceled);
-  }
+    if (context.performed)
+        SoundManager.Instance.PlaySFXLoop("WalkSound");
 
-  public void OnAttack(InputAction.CallbackContext context)
-  {
-      if (context.performed)
-      {
-          AttackAction();
-      }
-  }
-
-  private void AttackAction()
-  {
-      if (enemyChecker != null && enemyChecker.enemyInsideRange)
-      {
-        EnemyData enemyData = enemyChecker.targetEnemy.GetComponent<EnemyData>();
-
-        GameManager.instance.currentEnemy = enemyData.enemyDataSO;
-
-          triggerBattle?.EnterBattle();
-          gameObject.GetComponent<SpriteRenderer>().enabled = false;
-          this.enabled = false;
-      }
+    if (context.canceled)
+        SoundManager.Instance.StopSFXLoop();
   }
 }
